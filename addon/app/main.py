@@ -435,7 +435,7 @@ async def handle_api_device_resave_creds(request):
     if result == "conflict":
         return web.json_response({"status": "error", "detail": "A Mosquitto login with this username already exists and was not created by Petlibro Local"}, status=409)
     if result == "error":
-        return web.json_response({"status": "error", "detail": "Supervisor API call failed — check add-on logs"}, status=500)
+        return web.json_response({"status": "error", "detail": "Mosquitto login save failed — check the app logs"}, status=500)
     if result == "added":
         storage.add_owned_login(mqtt_user)
         devices.suppress_alerts(True)
@@ -645,7 +645,7 @@ async def handle_api_capture_start(request):
             stopped = await mosquitto.stop_mosquitto()
             if not stopped:
                 _LOGGER.error("Failed to stop Mosquitto — capture aborted")
-                _capture_state = {"status": "error", "result": {}, "detail": "Could not stop Mosquitto. Check hassio_role: manager is set in config.yaml and rebuild the add-on."}
+                _capture_state = {"status": "error", "result": {}, "detail": "Could not stop Mosquitto."}
                 return
             mosquitto_was_stopped = True
             # Give Mosquitto a moment to release port 1883 before the mini broker tries to bind
@@ -721,12 +721,13 @@ async def handle_api_ha_mobile_targets(request):
 
 async def handle_api_diag_mosquitto(request):
     """Diagnostic: test Supervisor API access and Mosquitto info. Safe read-only call."""
-    from ha_config import SUPERVISOR_TOKEN
+    from ha_config import HA_TOKEN
     info = (await mosquitto.get_addon_info()).get("data", {})
     # Only state and version: the full info includes the add-on options, which hold
     # every Mosquitto login in plain text.
     return web.json_response({
-        "token_set": bool(SUPERVISOR_TOKEN),
+        "token_set": bool(HA_TOKEN),
+        "mode": "docker" if os.environ.get("MOSQUITTO_PASSWORD_FILE") else "supervisor",
         "mosquitto_info": {"state": info.get("state"), "version": info.get("version")},
     })
 
@@ -998,6 +999,21 @@ async def handle_api_device_image_upload(request):
 
 async def on_startup(app):
     settings = storage.get_settings()
+    stored = storage._load().get("settings", {})
+    seeded = {}
+    if os.environ.get("MQTT_USER") and not stored.get("mqtt_user"):
+        seeded["mqtt_user"] = os.environ["MQTT_USER"]
+    if os.environ.get("MQTT_PASS") and not stored.get("mqtt_pass"):
+        seeded["mqtt_pass"] = os.environ["MQTT_PASS"]
+    if os.environ.get("MQTT_HOST") and "mqtt_host" not in stored:
+        seeded["mqtt_host"] = os.environ["MQTT_HOST"]
+    if os.environ.get("MQTT_PORT") and "mqtt_port" not in stored:
+        seeded["mqtt_port"] = int(os.environ["MQTT_PORT"])
+    if os.environ.get("TZ") and not stored.get("feeder_timezone"):
+        seeded["feeder_timezone"] = os.environ["TZ"]
+    if seeded:
+        settings = storage.save_settings(seeded)
+    await mosquitto.ensure_app_login()
     devices.configure(
         settings["mqtt_host"],
         settings["mqtt_port"],
@@ -1044,7 +1060,15 @@ async def _restrict_api_middleware(request, handler):
             remote_ip = ipaddress.ip_address(request.remote)
         except (ValueError, TypeError):
             remote_ip = None
-        if remote_ip is None or remote_ip != _INGRESS_PROXY:
+        allowed = remote_ip == _INGRESS_PROXY
+        if (
+            not allowed
+            and os.environ.get("PETLIBRO_ALLOW_PRIVATE_API") == "1"
+            and remote_ip is not None
+            and (remote_ip.is_private or remote_ip.is_loopback or remote_ip.is_link_local)
+        ):
+            allowed = True
+        if not allowed:
             _LOGGER.warning("Blocked /api/* request from outside the internal network: %s %s",
                             request.remote, request.path)
             return web.Response(status=403, text="Forbidden")

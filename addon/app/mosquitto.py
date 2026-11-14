@@ -49,6 +49,11 @@ async def _addon_action(action: str) -> bool:
 
 async def get_addon_info() -> dict:
     """Fetch Mosquitto add-on info for diagnostics. Logs the slug + state."""
+    if _docker_mode():
+        import docker_backend
+        info = await docker_backend.container_info()
+        _LOGGER.info("Mosquitto info: state=%s", info.get("state", "?"))
+        return {"data": info}
     if not SUPERVISOR_TOKEN:
         _LOGGER.error("SUPERVISOR_TOKEN not set")
         return {}
@@ -73,11 +78,21 @@ async def get_addon_info() -> dict:
         return {}
 
 
+def _docker_mode() -> bool:
+    return bool(os.environ.get("MOSQUITTO_PASSWORD_FILE"))
+
+
 async def stop_mosquitto() -> bool:
+    if _docker_mode():
+        import docker_backend
+        return await docker_backend.stop_mosquitto()
     return await _addon_action("stop")
 
 
 async def start_mosquitto() -> bool:
+    if _docker_mode():
+        import docker_backend
+        return await docker_backend.start_mosquitto()
     return await _addon_action("start")
 
 
@@ -221,9 +236,33 @@ _login_lock = asyncio.Lock()
 
 async def remove_mosquitto_login(username: str) -> str:
     async with _login_lock:
+        if _docker_mode():
+            import docker_backend
+            try:
+                return await asyncio.to_thread(docker_backend.remove_login, username)
+            except Exception:
+                _LOGGER.exception("remove_mosquitto_login failed")
+                return "error"
         return await _remove_mosquitto_login(username)
 
 
 async def add_mosquitto_login(username: str, password: str, allow_update: bool = False) -> str:
     async with _login_lock:
+        if _docker_mode():
+            import docker_backend
+            try:
+                return await asyncio.to_thread(
+                    docker_backend.add_login, username, password, allow_update
+                )
+            except Exception:
+                _LOGGER.exception("add_mosquitto_login failed")
+                return "error"
         return await _add_mosquitto_login(username, password, allow_update)
+
+
+async def ensure_app_login() -> None:
+    """Create this app's broker user when running against a standalone Mosquitto."""
+    if not _docker_mode():
+        return
+    import docker_backend
+    await docker_backend.ensure_app_login()

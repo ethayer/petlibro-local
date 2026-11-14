@@ -1,0 +1,31 @@
+# Petlibro Local against the Mosquitto broker in ../zigbee2mqtt.
+# The web UI is http://192.168.1.41:8765. It is open to the LAN.
+# Put HA_TOKEN and MQTT_PASS in .env (see .env.example). Do not commit .env.
+
+services:
+  petlibro-local:
+    build: .
+    image: petlibro-local:container
+    container_name: petlibro-local
+    network_mode: host
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TZ: America/Chicago
+      HA_BASE_URL: http://127.0.0.1:8123/api
+      MQTT_HOST: 127.0.0.1
+      MQTT_PORT: "1883"
+      MQTT_USER: petlibro-local
+      MOSQUITTO_PASSWORD_FILE: /mosquitto/config/password.txt
+      MOSQUITTO_ACL_FILE: /mosquitto/config/acl
+      MOSQUITTO_CONTAINER: mosquitto
+      MOSQUITTO_FILE_UID: "1000"
+      MOSQUITTO_FILE_GID: "1000"
+      MOSQUITTO_PROTECTED_USERS: admin
+      PETLIBRO_ALLOW_PRIVATE_API: "1"
+    volumes:
+      - ./data:/data
+      - ../zigbee2mqtt/mosquitto/config:/mosquitto/config
+      - /var/run/docker.sock:/var/run/docker.sock
+    labels:
+      - com.centurylinklabs.watchtower.enable=false

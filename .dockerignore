@@ -1,0 +1,7 @@
+.git
+data
+.env
+docs
+/images
+**/._*
+**/.DS_Store

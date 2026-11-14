@@ -15,7 +15,7 @@ Keep your Petlibro fountains and feeders running entirely on your local network.
 
 > **Is your device on newer firmware than the ones I've tested?** I've seen One RFID feeders on firmware 3.0.72 (hardware 5.0.0) and 2.0.47 (hardware 4.0.0), and Dockstream 2 fountains on 0.0.34 (hardware 1.0.0). I have no version for the other models. If yours shows something different (it's at the top of the device's modal), please [open an issue](https://github.com/smcneece/petlibro-local/issues) and tell me the version. If you're comfortable testing it, also tell me whether the device still reboots when Mosquitto restarts (see [Restarting Mosquitto Reboots Your Devices](#restarting-mosquitto-reboots-your-devices)). Newer firmware may behave differently, and it helps me work out what to build next.
 
-> ⚠️ **Installation type**: Petlibro Local is a Home Assistant App requiring a Supervisor-managed installation (HA OS or HA Supervised). Home Assistant Core and Home Assistant Container are not supported.
+> ⚠️ **Installation type**: Upstream Petlibro Local is a Home Assistant App and needs HA OS or HA Supervised. This fork also runs as a normal container against a standalone Mosquitto broker. See `docker-compose.yml`. The add-on path is unchanged when `MOSQUITTO_PASSWORD_FILE` is not set.
 
 > [![Sponsor](https://img.shields.io/badge/Sponsor-💖-pink)](https://github.com/sponsors/smcneece) If Petlibro Local keeps your fountain running after Petlibro changes their cloud or you just want your devices off the internet, consider sponsoring. Check out my [other HA projects](https://github.com/smcneece?tab=repositories) as well.
 >
