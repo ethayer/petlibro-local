@@ -15,7 +15,7 @@ Keep your Petlibro fountains and feeders running entirely on your local network.
 
 > **Is your device on newer firmware than the ones I've tested?** I've seen One RFID feeders on firmware 3.0.72 (hardware 5.0.0) and 2.0.47 (hardware 4.0.0), and Dockstream 2 fountains on 0.0.34 (hardware 1.0.0). I have no version for the other models. If yours shows something different (it's at the top of the device's modal), please [open an issue](https://github.com/smcneece/petlibro-local/issues) and tell me the version. If you're comfortable testing it, also tell me whether the device still reboots when Mosquitto restarts (see [Restarting Mosquitto Reboots Your Devices](#restarting-mosquitto-reboots-your-devices)). Newer firmware may behave differently, and it helps me work out what to build next.
 
-> ⚠️ **Installation type**: Upstream Petlibro Local is a Home Assistant App and needs HA OS or HA Supervised. This fork also runs as a normal container against a standalone Mosquitto broker. See `docker-compose.yml`. The add-on path is unchanged when `MOSQUITTO_PASSWORD_FILE` is not set.
+> ⚠️ **Installation type**: Upstream Petlibro Local is a Home Assistant App and needs HA OS or HA Supervised. This fork also runs as a normal container against a standalone Mosquitto broker. Copy `docker-compose.example.yml` to `docker-compose.yml` and set the broker paths there. The add-on path is unchanged when `MOSQUITTO_PASSWORD_FILE` is not set.
 
 > [![Sponsor](https://img.shields.io/badge/Sponsor-💖-pink)](https://github.com/sponsors/smcneece) If Petlibro Local keeps your fountain running after Petlibro changes their cloud or you just want your devices off the internet, consider sponsoring. Check out my [other HA projects](https://github.com/smcneece?tab=repositories) as well.
 >
@@ -97,6 +97,7 @@ The full list, with details, is in [Features](docs/features.md). In short:
 
 - **Fountains:** live water level, filter countdown, drink log, pump, light and light schedule controls
 - **Feeders:** Feed Now, lid control, backup battery status, last fed and next meal, maintenance reminders for the food tank, desiccant, bowl and housing
+- **Food remaining:** an estimate of how full the hopper is, shown in the app and published to Home Assistant. See [Food remaining estimate](#food-remaining-estimate)
 - **Feeding schedules:** edit meals in the app, pause every schedule at once, or skip a plan's next feeding
 - **Feed amounts:** show portions as cups, ounces, grams or milliliters, with an optional calibration for your food
 - **Sound and LED (One RFID):** Device Sound hours, LED display hours, scrolling text, your own icons, built-in and custom LED animations with an animation editor, and custom feed sounds
@@ -106,6 +107,24 @@ The full list, with details, is in [Features](docs/features.md). In short:
 - **Home Assistant:** entities for everything, so automations, dashboards and voice assistants work. See [Home Assistant entities](docs/entities.md)
 
 ---
+
+## Food remaining estimate
+
+Granary and One RFID feeders do not report a fill level. Petlibro Local estimates one from the tank size and the portions dispensed since the last recorded fill. Recording a fill counts as full unless you enter a lower percent, for a hopper you could not fill completely. One portion is the feeder's 20 ml scoop.
+
+The tank size comes from the model when that model has one published size. The plain Granary, PLAF103, is sold as both a 3 L tank and a 5 L tank and reports the same model either way, so you pick the size once. The camera Granary (PLAF203), Granary 2 (PLAF105), and Granary 2 Vision (PLAF205) are 5 L.
+
+Home Assistant gets a **Food Remaining** sensor, in percent. The feeder's own low-food warning is still the hard signal. This estimate drifts as kibble settles or a fill is short of what you entered.
+
+## Running as a container
+
+Home Assistant Container has no Supervisor, so this fork can use a Mosquitto broker you already run.
+
+1. Copy `docker-compose.example.yml` to `docker-compose.yml`. Point the Mosquitto volume at the directory that holds the broker's `password.txt` and `acl` file, and set `MOSQUITTO_PROTECTED_USERS` to any account the app must leave alone.
+2. Copy `.env.example` to `.env`. Set `MQTT_PASS` to the password for the `petlibro-local` broker account. `HA_TOKEN` is optional.
+3. From this directory, run `docker compose up -d --build`.
+
+The web UI listens on port 8765. The app uses the Docker socket to reload the broker when it adds a device login.
 
 ## Feed Amount Calibration (Optional)
 

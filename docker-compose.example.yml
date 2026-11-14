@@ -1,0 +1,47 @@
+# Petlibro Local beside an existing Mosquitto broker.
+# Copy this file to docker-compose.yml and replace the placeholder paths.
+# docker-compose.yml stays on the machine; it is not part of the repo.
+#
+# Copy .env.example to .env for HA_TOKEN and MQTT_PASS.
+# MOSQUITTO_PASSWORD_FILE is what selects this mode. Leave it unset to keep
+# the Home Assistant app behavior.
+
+services:
+  petlibro-local:
+    build: .
+    image: petlibro-local:container
+    container_name: petlibro-local
+    # Host networking lets MQTT_HOST below reach a broker on this same machine.
+    # For a broker on another host, remove network_mode and set MQTT_HOST to that host.
+    network_mode: host
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # IANA timezone name. Feeders have no clock of their own.
+      TZ: Etc/UTC
+      # Home Assistant REST API on this machine. Area names and phone
+      # notifications also need HA_TOKEN in .env. Feeding works without it.
+      HA_BASE_URL: http://127.0.0.1:8123/api
+      MQTT_HOST: 127.0.0.1
+      MQTT_PORT: "1883"
+      # Account this app uses on the broker. Its password is MQTT_PASS in .env.
+      MQTT_USER: petlibro-local
+      # Paths inside this container. The volume below must mount the directory
+      # that holds the broker's password file and ACL file.
+      MOSQUITTO_PASSWORD_FILE: /mosquitto/config/password.txt
+      MOSQUITTO_ACL_FILE: /mosquitto/config/acl
+      # Name of the broker's container. The app reloads it through the Docker socket.
+      MOSQUITTO_CONTAINER: mosquitto
+      # Owner of the password and ACL files. Match the user the broker runs as.
+      MOSQUITTO_FILE_UID: "1000"
+      MOSQUITTO_FILE_GID: "1000"
+      # Existing broker accounts this app must never rewrite. Comma-separated.
+      MOSQUITTO_PROTECTED_USERS: admin
+      # The UI has no login of its own. 1 allows its API from the local network.
+      PETLIBRO_ALLOW_PRIVATE_API: "1"
+    volumes:
+      - ./data:/data
+      # Host directory that contains password.txt and acl.
+      - /path/to/mosquitto/config:/mosquitto/config
+      # So the app can reload the broker. This grants control of the Docker daemon.
+      - /var/run/docker.sock:/var/run/docker.sock
