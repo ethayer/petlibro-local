@@ -439,6 +439,11 @@ function buildLedTab(device) {
 function buildMaintenanceTab(device) {
   if (device.device_type === "one_rfid" || device.device_type === "granary") {
     const foodDays = foodRefillDaysRemaining(device);
+    const foodPct = device.food_level_percent;
+    const foodLeft = foodPct == null
+      ? t("maint.food_estimate_unset")
+      : t("maint.food_estimate_value", {percent: foodPct, portions: device.food_portions_remaining ?? 0});
+    const foodCol = (device.surplusGrain === false || (foodPct != null && foodPct <= 15)) ? "var(--pl-danger)" : "var(--pl-accent)";
     const dDays    = desiccantDaysRemaining(device);
     const bowlDays = bowlDaysRemaining(device);
     const housDays = housingDaysRemaining(device);
@@ -457,10 +462,21 @@ function buildMaintenanceTab(device) {
         style="max-width:90px;color:${fdCol}">
     </div>
     <label class="form-label">${t("maint.refill_every")}</label>
-    <div style="display:flex;gap:8px;margin-bottom:18px">
+    <div style="display:flex;gap:8px;margin-bottom:14px">
       <input class="form-input" id="maint-food-refill-interval" type="number" min="1" max="365" value="${device.food_refill_interval_days ?? 14}" style="flex:1">
-      <button class="btn-secondary" id="btn-record-food-refill" style="flex-shrink:0">${t("maint.record_food_refill")}</button>
     </div>
+    <label class="form-label">${t("maint.food_capacity")}</label>
+    <input class="form-input" id="maint-food-capacity" type="number" min="1" max="2000" placeholder="80"
+      value="${device.food_capacity_portions ?? ""}" style="max-width:120px;margin-bottom:6px">
+    <p class="form-hint">${t("maint.food_capacity_hint")}</p>
+    <div style="font-size:13px;margin-bottom:10px">${t("maint.food_estimate")}: <span style="color:${foodCol}">${escHtml(foodLeft)}</span></div>
+    <label class="form-label">${t("maint.food_fill_amount")}</label>
+    <div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+      <input class="form-input" id="maint-food-fill-percent" type="number" min="0" max="100" value="100" style="max-width:90px">
+      <button class="btn-secondary" id="btn-record-food-refill" style="flex-shrink:0">${t("maint.record_food_refill")}</button>
+      <button class="btn-secondary" id="btn-set-food-level" style="flex-shrink:0">${t("maint.set_level")}</button>
+    </div>
+    <p class="form-hint" style="margin-bottom:18px">${t("maint.food_fill_hint")}</p>
 
     <div class="tab-section-heading">${t("maint.desiccant")}</div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
@@ -1628,15 +1644,78 @@ function wireDeviceTabHandlers(tabName) {
       };
     }
 
+    function _foodLevelFields() {
+      const capacityRaw = document.getElementById("maint-food-capacity")?.value ?? "";
+      const capacity = capacityRaw === "" ? null : parseInt(capacityRaw, 10);
+      const fillRaw = parseInt(document.getElementById("maint-food-fill-percent")?.value, 10);
+      const fill = Number.isNaN(fillRaw) ? 100 : Math.max(0, Math.min(100, fillRaw));
+      return {capacity, fill};
+    }
+    async function _reloadFoodEstimate() {
+      const list = await api("GET", "/api/devices");
+      const fresh = (list || []).find(x => x.serial === d.serial);
+      if (!fresh) return;
+      _patchDevice(d.serial, {
+        food_capacity_portions: fresh.food_capacity_portions,
+        food_fill_percent: fresh.food_fill_percent,
+        food_level_ts: fresh.food_level_ts,
+        food_level_percent: fresh.food_level_percent,
+        food_portions_remaining: fresh.food_portions_remaining,
+      });
+    }
+    const foodCapacityEl = document.getElementById("maint-food-capacity");
+    if (foodCapacityEl) {
+      foodCapacityEl.onchange = async () => {
+        const {capacity} = _foodLevelFields();
+        if (capacity == null || capacity < 1 || capacity > 2000) return;
+        await api("POST", `/api/devices/${d.serial}`, {food_capacity_portions: capacity});
+        _patchDevice(d.serial, {food_capacity_portions: capacity});
+        try { await _reloadFoodEstimate(); } catch (e) { /* capacity is saved; the next poll fills the estimate */ }
+        renderDeviceTab("maintenance");
+      };
+    }
     const recordFoodRefill = document.getElementById("btn-record-food-refill");
     if (recordFoodRefill) {
       recordFoodRefill.onclick = async () => {
         const interval = parseInt(document.getElementById("maint-food-refill-interval").value) || 14;
+        const {capacity, fill} = _foodLevelFields();
         const now = Date.now();
-        await api("POST", `/api/devices/${d.serial}`, { last_food_refill_ts: now, food_refill_interval_days: interval });
-        _patchDevice(d.serial, { last_food_refill_ts: now, food_refill_interval_days: interval });
+        const fields = {
+          last_food_refill_ts: now,
+          food_refill_interval_days: interval,
+          food_fill_percent: fill,
+          food_level_ts: now,
+        };
+        if (capacity != null && capacity >= 1 && capacity <= 2000) fields.food_capacity_portions = capacity;
+        await api("POST", `/api/devices/${d.serial}`, fields);
+        const remaining = capacity ? Math.round(capacity * fill / 100) : d.food_portions_remaining;
+        _patchDevice(d.serial, {
+          ...fields,
+          food_level_percent: capacity ? fill : d.food_level_percent,
+          food_portions_remaining: remaining,
+        });
+        try { await _reloadFoodEstimate(); } catch (e) { /* local patch already shows the new fill */ }
         recordFoodRefill.textContent = t("maint.recorded");
         setTimeout(() => { recordFoodRefill.textContent = t("maint.record_food_refill"); renderDeviceTab("maintenance"); }, 1200);
+      };
+    }
+    const setFoodLevel = document.getElementById("btn-set-food-level");
+    if (setFoodLevel) {
+      setFoodLevel.onclick = async () => {
+        const {capacity, fill} = _foodLevelFields();
+        const now = Date.now();
+        const fields = {food_fill_percent: fill, food_level_ts: now};
+        if (capacity != null && capacity >= 1 && capacity <= 2000) fields.food_capacity_portions = capacity;
+        await api("POST", `/api/devices/${d.serial}`, fields);
+        const remaining = capacity ? Math.round(capacity * fill / 100) : d.food_portions_remaining;
+        _patchDevice(d.serial, {
+          ...fields,
+          food_level_percent: capacity ? fill : d.food_level_percent,
+          food_portions_remaining: remaining,
+        });
+        try { await _reloadFoodEstimate(); } catch (e) { /* local patch already shows the new fill */ }
+        setFoodLevel.textContent = t("maint.recorded");
+        setTimeout(() => { setFoodLevel.textContent = t("maint.set_level"); renderDeviceTab("maintenance"); }, 1200);
       };
     }
     const resetDesiccant = document.getElementById("btn-reset-desiccant");

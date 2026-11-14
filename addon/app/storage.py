@@ -45,6 +45,7 @@ ALLOWED_DEVICE_FIELDS = {
     "last_bowl_cleaned_ts", "bowl_cleaning_interval_days",
     "last_housing_cleaned_ts", "housing_cleaning_interval_days",
     "last_food_refill_ts", "food_refill_interval_days",
+    "food_capacity_portions", "food_fill_percent", "food_level_ts",
     "display_text",
     "display_icon",
     "display_icon_name",
@@ -98,6 +99,9 @@ _DEVICE_DEFAULTS = {
     "housing_cleaning_interval_days": 30,
     "last_food_refill_ts": None,
     "food_refill_interval_days": 14,
+    "food_capacity_portions": None,
+    "food_fill_percent": None,
+    "food_level_ts": None,
     "display_text": "",
     "display_icon": 0,
     "battery_low_pct": 20,
@@ -369,6 +373,54 @@ def get_feeder_log(serial: str, limit: int = 60) -> list:
     """Return feeder events newest-first."""
     entries = _load().get("_feeder_log", {}).get(serial, [])
     return list(reversed(entries[-limit:]))
+
+
+def estimate_food_level(capacity, fill_percent, level_ts, events) -> dict | None:
+    """Portions left since a recorded fill, as a percent of a full tank.
+
+    capacity is portions that fit at 100%. fill_percent is how full the tank
+    was at level_ts (milliseconds). Dispense events at or after that time are
+    subtracted. Returns None until both a capacity and a fill have been set.
+    """
+    if isinstance(capacity, bool) or not isinstance(capacity, (int, float)) or capacity <= 0:
+        return None
+    if isinstance(fill_percent, bool) or not isinstance(fill_percent, (int, float)):
+        return None
+    if isinstance(level_ts, bool) or not isinstance(level_ts, (int, float)):
+        return None
+    fill = max(0.0, min(100.0, float(fill_percent)))
+    since = float(level_ts)
+    if since < 10_000_000_000:  # stored as seconds
+        since *= 1000
+    dispensed = 0.0
+    for entry in events or []:
+        if not isinstance(entry, dict) or entry.get("type") != "food_dispensed":
+            continue
+        ts = entry.get("ts")
+        if isinstance(ts, bool) or not isinstance(ts, (int, float)) or ts < since:
+            continue
+        portions = entry.get("portions") or 0
+        if isinstance(portions, bool) or not isinstance(portions, (int, float)):
+            continue
+        dispensed += portions
+    remaining = max(0.0, float(capacity) * fill / 100.0 - dispensed)
+    percent = max(0, min(100, int(round(remaining / float(capacity) * 100))))
+    return {
+        "percent": percent,
+        "portions_remaining": int(round(remaining)),
+        "portions_dispensed": int(round(dispensed)),
+    }
+
+
+def food_level_estimate(serial: str) -> dict | None:
+    cfg = get_devices().get(serial, {})
+    events = _load().get("_feeder_log", {}).get(serial, [])
+    return estimate_food_level(
+        cfg.get("food_capacity_portions"),
+        cfg.get("food_fill_percent"),
+        cfg.get("food_level_ts"),
+        events,
+    )
 
 
 def log_fountain_event(serial: str, event_type: str, grams: float = 0, extra: dict | None = None):

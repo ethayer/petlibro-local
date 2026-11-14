@@ -110,7 +110,7 @@ function renderDevices() {
           ${d.device_type === "polar" ? polarCardStats(d) : isFeeder ? `
           <div class="card-stat">
             <div class="stat-label">${t("card.food")}</div>
-            <div class="stat-value${d.surplusGrain === false ? " danger" : " accent"}">${d.surplusGrain === false ? t("food.low") : d.surplusGrain === true ? t("food.ok") : "—"}</div>
+            <div class="stat-value${(d.surplusGrain === false || (d.food_level_percent != null && d.food_level_percent <= 15)) ? " danger" : " accent"}">${d.food_level_percent != null ? `${d.food_level_percent}%` : (d.surplusGrain === false ? t("food.low") : d.surplusGrain === true ? t("food.ok") : "—")}</div>
           </div>
           ${d.device_type === "one_rfid" ? `
           <div class="card-stat stat-secondary">

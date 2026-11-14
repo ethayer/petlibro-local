@@ -225,6 +225,18 @@ def _e(serial: str, key: str, b: dict, extra: dict) -> dict:
     return {**b, "unique_id": _oid(serial, key), "object_id": _obj_id(serial, key), **extra}
 
 
+def _food_remaining_entity(serial: str, b: dict) -> tuple[str, str, dict]:
+    """Estimate of hopper fill. Math lives here; dashboards only display it."""
+    return ("sensor", "food_remaining", _e(serial, "food_remaining", b, {
+        "name":                  "Food Remaining",
+        "state_topic":           state_topic(serial, "food_remaining"),
+        "json_attributes_topic": state_topic(serial, "food_remaining_attrs"),
+        "unit_of_measurement":   "%",
+        "state_class":           "measurement",
+        "icon":                  "mdi:food-variant",
+    }))
+
+
 def _entity_configs(serial: str, cfg: dict, state: dict, extra_icon_names: list[str] | None = None) -> list[tuple[str, str, dict]]:
     """Return [(component, key, discovery_config), ...] for all entities of this device."""
     device_type = cfg.get("device_type", "")
@@ -511,6 +523,8 @@ def _entity_configs(serial: str, cfg: dict, state: dict, extra_icon_names: list[
             "entity_category":     "diagnostic",
         })))
 
+        entities.append(_food_remaining_entity(serial, b))
+
         entities.append(("binary_sensor", "door", _e(serial, "door", b, {
             "name":         "Food Door",
             "state_topic":  state_topic(serial, "door"),
@@ -707,6 +721,8 @@ def _entity_configs(serial: str, cfg: dict, state: dict, extra_icon_names: list[
             "entity_category":     "diagnostic",
         })))
 
+        entities.append(_food_remaining_entity(serial, b))
+
         entities.append(("button", "feed_now", _e(serial, "feed_now", b, {
             "name":           "Feed Now",
             "command_topic":  cmd_topic(serial, "feed_now"),
@@ -894,6 +910,25 @@ def _next_meal_ts(plans: list) -> str | None:
             break  # found closest future occurrence for this plan
 
     return best.isoformat() if best else None
+
+
+async def _publish_food_remaining(client, serial: str):
+    """Publish the hopper estimate. "None" clears a retained value when unset."""
+    import storage
+    level = storage.food_level_estimate(serial)
+    if level is None:
+        await client.publish(state_topic(serial, "food_remaining"), "None", retain=True)
+        await client.publish(state_topic(serial, "food_remaining_attrs"), "{}", retain=True)
+        return
+    await client.publish(state_topic(serial, "food_remaining"), str(level["percent"]), retain=True)
+    await client.publish(
+        state_topic(serial, "food_remaining_attrs"),
+        json.dumps({
+            "portions_remaining": level["portions_remaining"],
+            "portions_dispensed": level["portions_dispensed"],
+        }),
+        retain=True,
+    )
 
 
 async def publish_state(client, serial: str, cfg: dict, state: dict, plans: list | None = None,
@@ -1126,6 +1161,9 @@ async def publish_state(client, serial: str, cfg: dict, state: dict, plans: list
         if "disableHardwareButton" in state:
             val = "ON" if state["disableHardwareButton"] else "OFF"
             await client.publish(state_topic(serial, "buttons_lock"), val, retain=True)
+
+    if device_type in ("one_rfid", "granary"):
+        await _publish_food_remaining(client, serial)
 
     if device_type in ("one_rfid", "granary") and isinstance(state.get("_last_feed_result"), dict):
         r = state["_last_feed_result"]
