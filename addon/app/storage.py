@@ -424,8 +424,9 @@ def estimate_food_level(capacity, fill_percent, level_ts, events) -> dict | None
 
 
 def food_level_estimate(serial: str) -> dict | None:
-    cfg = get_devices().get(serial, {})
-    liters = cfg.get("food_capacity_liters")
+    from device_types.feeders import granary as _granary
+    cfg = {**get_devices().get(serial, {}), "serial": serial}
+    liters = _granary.capacity_liters(cfg) if cfg.get("device_type") == "granary" else cfg.get("food_capacity_liters")
     if isinstance(liters, bool) or not isinstance(liters, (int, float)) or liters <= 0:
         capacity = None
     else:

@@ -44,6 +44,45 @@ MQTT_MODELS = {
     "granary": "PLAF103",
 }
 
+# Published food-tank sizes, in liters. A model with one size can be filled in
+# automatically. PLAF103 is the same wire model for the 3 L tank (274 mm tall)
+# and the 5 L tank (340 mm tall); the feeder never says which one it is.
+# PLAF105 is the Granary 2 and PLAF205 is the Granary 2 Vision, both 5 L.
+TANK_LITERS = {
+    "PLAF103": (3.0, 5.0),
+    "PLAF203": (5.0,),
+    "PLAF105": (5.0,),
+    "PLAF205": (5.0,),
+}
+
+
+def wire_model(cfg: dict) -> str:
+    """Model this Granary reports. AF03 is the camera feeder (PLAF203)."""
+    model = str(cfg.get("wire_model") or "").upper()
+    if model:
+        return model
+    if cfg.get("device_type") != "granary":
+        return ""
+    serial = str(cfg.get("serial") or "").upper()
+    if serial.startswith("AF03"):
+        return "PLAF203"
+    return "PLAF103"
+
+
+def tank_choices(cfg: dict) -> tuple[float, ...] | None:
+    return TANK_LITERS.get(wire_model(cfg))
+
+
+def capacity_liters(cfg: dict) -> float | None:
+    """Saved size, or the model's only size. Two sizes stay unset until chosen."""
+    saved = cfg.get("food_capacity_liters")
+    if isinstance(saved, (int, float)) and not isinstance(saved, bool) and saved > 0:
+        return float(saved)
+    choices = tank_choices(cfg)
+    if choices and len(choices) == 1:
+        return float(choices[0])
+    return None
+
 ALERT_MESSAGES = {
     "food_low":        "Food hopper is empty or running low.",
     "food_refill_due":  "Food tank hasn't been refilled in a while, may be running low.",

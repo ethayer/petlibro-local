@@ -435,6 +435,35 @@ function buildLedTab(device) {
     </div>`;
 }
 
+function foodCapacityControl(device) {
+  const choices = device.food_tank_choices || [];
+  const saved = device.food_capacity_liters;
+  if (device.device_type === "granary" && choices.length) {
+    const selected = saved ?? (choices.length === 1 ? choices[0] : "");
+    const blank = choices.length > 1
+      ? `<option value=""${selected === "" ? " selected" : ""}>${t("maint.food_capacity_choose")}</option>`
+      : "";
+    const options = choices.map(n =>
+      `<option value="${n}"${Number(selected) === Number(n) ? " selected" : ""}>${n} L</option>`
+    ).join("");
+    return `<select class="form-input" id="maint-food-capacity" style="max-width:160px;margin-bottom:6px">${blank}${options}</select>`;
+  }
+  return `<input class="form-input" id="maint-food-capacity" type="number" min="0.1" max="30" step="0.1"
+    value="${saved ?? ""}" style="max-width:120px;margin-bottom:6px">`;
+}
+
+function foodCapacityHint(device) {
+  const choices = device.food_tank_choices || [];
+  const model = device.food_tank_model;
+  if (device.device_type === "granary" && model && choices.length === 1) {
+    return t("maint.food_capacity_hint_model", {model, liters: choices[0]});
+  }
+  if (device.device_type === "granary" && model && choices.length > 1) {
+    return t("maint.food_capacity_hint_choice", {model});
+  }
+  return t("maint.food_capacity_hint");
+}
+
 // ── Maintenance tab ───────────────────────────────────────────────────────
 function buildMaintenanceTab(device) {
   if (device.device_type === "one_rfid" || device.device_type === "granary") {
@@ -466,9 +495,8 @@ function buildMaintenanceTab(device) {
       <input class="form-input" id="maint-food-refill-interval" type="number" min="1" max="365" value="${device.food_refill_interval_days ?? 14}" style="flex:1">
     </div>
     <label class="form-label">${t("maint.food_capacity")}</label>
-    <input class="form-input" id="maint-food-capacity" type="number" min="0.1" max="30" step="0.1" placeholder="5"
-      value="${device.food_capacity_liters ?? (device.device_type === "granary" ? 5 : "")}" style="max-width:120px;margin-bottom:6px">
-    <p class="form-hint">${t("maint.food_capacity_hint")}</p>
+    ${foodCapacityControl(device)}
+    <p class="form-hint">${foodCapacityHint(device)}</p>
     <div style="font-size:13px;margin-bottom:10px">${t("maint.food_estimate")}: <span style="color:${foodCol}">${escHtml(foodLeft)}</span></div>
     <label class="form-label">${t("maint.food_fill_amount")}</label>
     <div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap">

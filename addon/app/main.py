@@ -66,6 +66,13 @@ def _devices_with_state() -> list:
         intake_today = storage.get_intake_today(serial)
         feeding_plans = storage.get_device_feeding_plans(serial)
         level = storage.food_level_estimate(serial)
+        tank_model = None
+        tank_choices = None
+        if cfg.get("device_type") == "granary":
+            from device_types.feeders import granary as _granary
+            looked = {**cfg, "serial": serial}
+            tank_model = _granary.wire_model(looked)
+            tank_choices = list(_granary.tank_choices(looked) or [])
         result.append({
             **cfg, **state,
             "pets": device_pets,
@@ -74,6 +81,8 @@ def _devices_with_state() -> list:
             "food_level_percent": None if level is None else level["percent"],
             "food_liters_remaining": None if level is None else level["liters_remaining"],
             "food_portions_remaining": None if level is None else level["portions_remaining"],
+            "food_tank_model": tank_model,
+            "food_tank_choices": tank_choices,
         })
     return result
 
