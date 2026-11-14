@@ -442,7 +442,7 @@ function buildMaintenanceTab(device) {
     const foodPct = device.food_level_percent;
     const foodLeft = foodPct == null
       ? t("maint.food_estimate_unset")
-      : t("maint.food_estimate_value", {percent: foodPct, portions: device.food_portions_remaining ?? 0});
+      : t("maint.food_estimate_value", {percent: foodPct, liters: device.food_liters_remaining ?? 0});
     const foodCol = (device.surplusGrain === false || (foodPct != null && foodPct <= 15)) ? "var(--pl-danger)" : "var(--pl-accent)";
     const dDays    = desiccantDaysRemaining(device);
     const bowlDays = bowlDaysRemaining(device);
@@ -466,8 +466,8 @@ function buildMaintenanceTab(device) {
       <input class="form-input" id="maint-food-refill-interval" type="number" min="1" max="365" value="${device.food_refill_interval_days ?? 14}" style="flex:1">
     </div>
     <label class="form-label">${t("maint.food_capacity")}</label>
-    <input class="form-input" id="maint-food-capacity" type="number" min="1" max="2000" placeholder="80"
-      value="${device.food_capacity_portions ?? ""}" style="max-width:120px;margin-bottom:6px">
+    <input class="form-input" id="maint-food-capacity" type="number" min="0.1" max="30" step="0.1" placeholder="5"
+      value="${device.food_capacity_liters ?? (device.device_type === "granary" ? 5 : "")}" style="max-width:120px;margin-bottom:6px">
     <p class="form-hint">${t("maint.food_capacity_hint")}</p>
     <div style="font-size:13px;margin-bottom:10px">${t("maint.food_estimate")}: <span style="color:${foodCol}">${escHtml(foodLeft)}</span></div>
     <label class="form-label">${t("maint.food_fill_amount")}</label>
@@ -1646,20 +1646,26 @@ function wireDeviceTabHandlers(tabName) {
 
     function _foodLevelFields() {
       const capacityRaw = document.getElementById("maint-food-capacity")?.value ?? "";
-      const capacity = capacityRaw === "" ? null : parseInt(capacityRaw, 10);
+      const parsed = capacityRaw === "" ? null : Math.round(parseFloat(capacityRaw) * 100) / 100;
+      const capacity = parsed != null && parsed >= 0.1 && parsed <= 30 ? parsed : null;
       const fillRaw = parseInt(document.getElementById("maint-food-fill-percent")?.value, 10);
       const fill = Number.isNaN(fillRaw) ? 100 : Math.max(0, Math.min(100, fillRaw));
       return {capacity, fill};
+    }
+    function _litersLeft(capacity, fill) {
+      if (capacity == null) return d.food_liters_remaining;
+      return Math.round(capacity * fill) / 100;
     }
     async function _reloadFoodEstimate() {
       const list = await api("GET", "/api/devices");
       const fresh = (list || []).find(x => x.serial === d.serial);
       if (!fresh) return;
       _patchDevice(d.serial, {
-        food_capacity_portions: fresh.food_capacity_portions,
+        food_capacity_liters: fresh.food_capacity_liters,
         food_fill_percent: fresh.food_fill_percent,
         food_level_ts: fresh.food_level_ts,
         food_level_percent: fresh.food_level_percent,
+        food_liters_remaining: fresh.food_liters_remaining,
         food_portions_remaining: fresh.food_portions_remaining,
       });
     }
@@ -1667,9 +1673,9 @@ function wireDeviceTabHandlers(tabName) {
     if (foodCapacityEl) {
       foodCapacityEl.onchange = async () => {
         const {capacity} = _foodLevelFields();
-        if (capacity == null || capacity < 1 || capacity > 2000) return;
-        await api("POST", `/api/devices/${d.serial}`, {food_capacity_portions: capacity});
-        _patchDevice(d.serial, {food_capacity_portions: capacity});
+        if (capacity == null) return;
+        await api("POST", `/api/devices/${d.serial}`, {food_capacity_liters: capacity});
+        _patchDevice(d.serial, {food_capacity_liters: capacity});
         try { await _reloadFoodEstimate(); } catch (e) { /* capacity is saved; the next poll fills the estimate */ }
         renderDeviceTab("maintenance");
       };
@@ -1686,13 +1692,12 @@ function wireDeviceTabHandlers(tabName) {
           food_fill_percent: fill,
           food_level_ts: now,
         };
-        if (capacity != null && capacity >= 1 && capacity <= 2000) fields.food_capacity_portions = capacity;
+        if (capacity != null) fields.food_capacity_liters = capacity;
         await api("POST", `/api/devices/${d.serial}`, fields);
-        const remaining = capacity ? Math.round(capacity * fill / 100) : d.food_portions_remaining;
         _patchDevice(d.serial, {
           ...fields,
           food_level_percent: capacity ? fill : d.food_level_percent,
-          food_portions_remaining: remaining,
+          food_liters_remaining: _litersLeft(capacity, fill),
         });
         try { await _reloadFoodEstimate(); } catch (e) { /* local patch already shows the new fill */ }
         recordFoodRefill.textContent = t("maint.recorded");
@@ -1705,13 +1710,12 @@ function wireDeviceTabHandlers(tabName) {
         const {capacity, fill} = _foodLevelFields();
         const now = Date.now();
         const fields = {food_fill_percent: fill, food_level_ts: now};
-        if (capacity != null && capacity >= 1 && capacity <= 2000) fields.food_capacity_portions = capacity;
+        if (capacity != null) fields.food_capacity_liters = capacity;
         await api("POST", `/api/devices/${d.serial}`, fields);
-        const remaining = capacity ? Math.round(capacity * fill / 100) : d.food_portions_remaining;
         _patchDevice(d.serial, {
           ...fields,
           food_level_percent: capacity ? fill : d.food_level_percent,
-          food_portions_remaining: remaining,
+          food_liters_remaining: _litersLeft(capacity, fill),
         });
         try { await _reloadFoodEstimate(); } catch (e) { /* local patch already shows the new fill */ }
         setFoodLevel.textContent = t("maint.recorded");

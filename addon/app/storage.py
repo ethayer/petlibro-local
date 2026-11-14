@@ -45,7 +45,7 @@ ALLOWED_DEVICE_FIELDS = {
     "last_bowl_cleaned_ts", "bowl_cleaning_interval_days",
     "last_housing_cleaned_ts", "housing_cleaning_interval_days",
     "last_food_refill_ts", "food_refill_interval_days",
-    "food_capacity_portions", "food_fill_percent", "food_level_ts",
+    "food_capacity_liters", "food_fill_percent", "food_level_ts",
     "display_text",
     "display_icon",
     "display_icon_name",
@@ -99,7 +99,7 @@ _DEVICE_DEFAULTS = {
     "housing_cleaning_interval_days": 30,
     "last_food_refill_ts": None,
     "food_refill_interval_days": 14,
-    "food_capacity_portions": None,
+    "food_capacity_liters": None,
     "food_fill_percent": None,
     "food_level_ts": None,
     "display_text": "",
@@ -375,12 +375,22 @@ def get_feeder_log(serial: str, limit: int = 60) -> list:
     return list(reversed(entries[-limit:]))
 
 
-def estimate_food_level(capacity, fill_percent, level_ts, events) -> dict | None:
-    """Portions left since a recorded fill, as a percent of a full tank.
+# One feeder portion is a fixed 20 ml scoop (1/12 cup). Liters are what a
+# person knows about the tank; portions are what the dispense log counts.
+ML_PER_PORTION = 20
 
-    capacity is portions that fit at 100%. fill_percent is how full the tank
-    was at level_ts (milliseconds). Dispense events at or after that time are
-    subtracted. Returns None until both a capacity and a fill have been set.
+
+def portions_from_liters(liters: float) -> float:
+    return float(liters) * 1000.0 / ML_PER_PORTION
+
+
+def estimate_food_level(capacity, fill_percent, level_ts, events) -> dict | None:
+    """Food left since a recorded fill, as a percent of a full tank.
+
+    capacity is portions that fit at 100% (liters × 50, since each portion is
+    20 ml). fill_percent is how full the tank was at level_ts (milliseconds).
+    Dispense events at or after that time are subtracted. Returns None until
+    both a capacity and a fill have been set.
     """
     if isinstance(capacity, bool) or not isinstance(capacity, (int, float)) or capacity <= 0:
         return None
@@ -409,14 +419,20 @@ def estimate_food_level(capacity, fill_percent, level_ts, events) -> dict | None
         "percent": percent,
         "portions_remaining": int(round(remaining)),
         "portions_dispensed": int(round(dispensed)),
+        "liters_remaining": round(remaining * ML_PER_PORTION / 1000.0, 2),
     }
 
 
 def food_level_estimate(serial: str) -> dict | None:
     cfg = get_devices().get(serial, {})
+    liters = cfg.get("food_capacity_liters")
+    if isinstance(liters, bool) or not isinstance(liters, (int, float)) or liters <= 0:
+        capacity = None
+    else:
+        capacity = portions_from_liters(liters)
     events = _load().get("_feeder_log", {}).get(serial, [])
     return estimate_food_level(
-        cfg.get("food_capacity_portions"),
+        capacity,
         cfg.get("food_fill_percent"),
         cfg.get("food_level_ts"),
         events,

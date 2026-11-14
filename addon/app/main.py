@@ -24,14 +24,14 @@ _LOGGER = logging.getLogger(__name__)
 _SAFE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 
-def _reject_int_field(data: dict, key: str, lo: int, hi: int, message: str) -> str | None:
-    """Coerce an optional integer field. None means the field was absent or null."""
+def _reject_number_field(data: dict, key: str, lo: float, hi: float, message: str, *, places: int) -> str | None:
+    """Coerce an optional number field. None means the field was absent or null."""
     if key not in data or data[key] is None:
         return None
     value = data[key]
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not lo <= value <= hi:
         return message
-    data[key] = int(round(value))
+    data[key] = round(float(value), places) if places else int(round(value))
     return None
 
 VERSION = "2026.11.2"
@@ -72,6 +72,7 @@ def _devices_with_state() -> list:
             "intake_today_grams": intake_today,
             "feeding_plans": feeding_plans,
             "food_level_percent": None if level is None else level["percent"],
+            "food_liters_remaining": None if level is None else level["liters_remaining"],
             "food_portions_remaining": None if level is None else level["portions_remaining"],
         })
     return result
@@ -297,10 +298,10 @@ async def handle_api_device_post(request):
             g = data["calibrated_grams_per_portion"]
             if isinstance(g, bool) or not isinstance(g, (int, float)) or not 0.1 <= g <= 200:
                 return web.Response(status=400, text="Grams per portion must be between 0.1 and 200")
-        bad = _reject_int_field(data, "food_capacity_portions", 1, 2000, "Portions when full must be between 1 and 2000")
+        bad = _reject_number_field(data, "food_capacity_liters", 0.1, 30, "Tank size must be between 0.1 and 30 liters", places=2)
         if bad:
             return web.Response(status=400, text=bad)
-        bad = _reject_int_field(data, "food_fill_percent", 0, 100, "Fill amount must be a percent from 0 to 100")
+        bad = _reject_number_field(data, "food_fill_percent", 0, 100, "Fill amount must be a percent from 0 to 100", places=0)
         if bad:
             return web.Response(status=400, text=bad)
         if "food_level_ts" in data and data["food_level_ts"] is not None:

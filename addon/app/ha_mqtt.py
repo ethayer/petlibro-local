@@ -924,6 +924,7 @@ async def _publish_food_remaining(client, serial: str):
     await client.publish(
         state_topic(serial, "food_remaining_attrs"),
         json.dumps({
+            "liters_remaining": level["liters_remaining"],
             "portions_remaining": level["portions_remaining"],
             "portions_dispensed": level["portions_dispensed"],
         }),
