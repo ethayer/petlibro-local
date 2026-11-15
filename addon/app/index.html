@@ -14,7 +14,7 @@
 <header class="header">
   <img src="{{BASE}}/icon.png" alt="" style="width:32px;height:32px;border-radius:6px;flex-shrink:0">
   <div class="header-title">Petlibro <span>Local</span></div>
-  <div id="header-sort-wrap">
+  <div id="header-sort-wrap" style="display:none">
     <label for="device-sort-select" data-i18n="header.sort">Sort</label>
     <select class="form-select" id="device-sort-select">
       <option value="name" data-i18n="header.sort_name">Name</option>
@@ -33,7 +33,7 @@
 </header>
 
 <main class="main">
-  <div id="panel-devices" class="tab-panel active">
+  <div id="panel-devices" class="tab-panel">
     <div class="setup-banner" id="pet-setup-banner" style="display:none">
       <span data-i18n="banner.pets">Add your pet(s) to enable feeding logs and RFID tracking.</span>
       <button class="setup-banner-link" id="btn-banner-pets" data-i18n="banner.pets_link">Add a Pet →</button>
@@ -46,7 +46,7 @@
     </div>
   </div>
 
-  <div id="panel-pets" class="tab-panel">
+  <div id="panel-pets" class="tab-panel active">
     <div class="pet-list" id="pet-list">
       <div class="empty-state">
         <div class="empty-icon">🐾</div>
@@ -123,6 +123,17 @@
             </optgroup>
           </select>
           <p class="form-hint" data-i18n="settings.tz_hint">Enter schedule times in local time. Saved schedules follow daylight saving changes in this timezone. Changing the timezone keeps existing UTC times, so displayed local meal times may change; check and correct them before saving.</p>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h2 data-i18n="settings.landing_heading">Start page</h2>
+        <div class="form-row">
+          <label class="form-label" data-i18n="settings.landing_label">Open to</label>
+          <select class="form-select" id="s-landing-page">
+            <option value="pets" data-i18n="settings.landing_pets">Pets</option>
+            <option value="devices" data-i18n="settings.landing_devices">Devices</option>
+          </select>
+          <p class="form-hint" data-i18n="settings.landing_hint">The page shown when you open Petlibro Local.</p>
         </div>
       </div>
       <div class="settings-section">
@@ -252,11 +263,11 @@
 </div>
 
 <nav class="tab-bar">
-  <button class="tab-btn active" data-tab="devices">
+  <button class="tab-btn" data-tab="devices">
     <span class="tab-icon">🥣</span>
     <span data-i18n="tab.devices">Devices</span>
   </button>
-  <button class="tab-btn" data-tab="pets">
+  <button class="tab-btn active" data-tab="pets">
     <span class="tab-icon">🐾</span>
     <span data-i18n="tab.pets">Pets</span>
   </button>

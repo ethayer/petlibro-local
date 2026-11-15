@@ -30,6 +30,7 @@ DEFAULT_SETTINGS = {
     "notify_email_to": "",
     "notify_mobile_default_service": "",
     "local_audio_base_url": "",
+    "landing_page": "pets",
 }
 
 ALLOWED_SETTINGS = set(DEFAULT_SETTINGS.keys()) | {"feeder_timezone"}

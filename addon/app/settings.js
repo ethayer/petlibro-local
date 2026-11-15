@@ -272,6 +272,8 @@ function renderSettings() {
 
   _populateNotifyDropdowns();
 
+  const landingSel = document.getElementById("s-landing-page");
+  if (landingSel) landingSel.value = _settings.landing_page === "devices" ? "devices" : "pets";
   const langSel = document.getElementById("s-language");
   if (_settings.language) {
     for (const opt of langSel.options) {
@@ -299,6 +301,7 @@ async function saveSettings(fromTab) {
     language: document.getElementById("s-language").value,
     units: document.getElementById("s-units").value,
     feeder_timezone: document.getElementById("s-feeder-tz")?.value || "America/Denver",
+    landing_page: document.getElementById("s-landing-page")?.value === "devices" ? "devices" : "pets",
     notify_bell_enabled: document.getElementById("s-notify-bell")?.checked !== false,
     notify_email_service: document.getElementById("s-notify-email-service")?.value || "",
     notify_email_to: (document.getElementById("s-notify-email-to")?.value || "").trim(),

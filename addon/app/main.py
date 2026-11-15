@@ -641,6 +641,8 @@ async def handle_api_settings_get(request):
 async def handle_api_settings_post(request):
     try:
         data = await request.json()
+        if "landing_page" in data and data["landing_page"] not in ("pets", "devices"):
+            return web.Response(status=400, text="Bad request")
         result = storage.save_settings(data)
         settings = storage.get_settings()
         devices.configure(

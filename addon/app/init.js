@@ -234,9 +234,8 @@ async function detectLanguage(availableLangs) {
   checkAlerts();
   checkMqttSetup();
   checkPetSetup();
-  // If MQTT is set up, devices exist, but no pets have been added yet, nudge user to Pets tab
-  if (isMqttConfigured() && _devices.length > 0 && _pets.length === 0) {
-    switchTab("pets");
+  if (isMqttConfigured()) {
+    switchTab(_settings.landing_page === "devices" ? "devices" : "pets");
   }
 
   setInterval(pollRefresh, 8000);
