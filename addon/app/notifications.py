@@ -28,11 +28,8 @@ async def fire_notification(title: str, message: str, settings: dict, device: di
             await _fire_notify_service(service, title, message, targets)
 
     if device.get("notify_mobile", False):
-        mobile = (device.get("notify_mobile_service", "").strip()
-                  or settings.get("notify_mobile_default_service", "").strip())
-        if mobile:
-            await _fire_notify_service(mobile.removeprefix("notify."), title, message, [],
-                                       tag=notification_id)
+        for mobile in _mobile_services(device, settings):
+            await _fire_notify_service(mobile, title, message, [], tag=notification_id)
 
 
 async def dismiss_notification(notification_id: str, settings: dict, device: dict):
@@ -55,13 +52,8 @@ async def dismiss_notification(notification_id: str, settings: dict, device: dic
             _LOGGER.exception("Failed to dismiss notification %s", notification_id)
 
     if device.get("notify_mobile", False):
-        mobile = (device.get("notify_mobile_service", "").strip()
-                  or settings.get("notify_mobile_default_service", "").strip())
-        if mobile:
-            await _fire_notify_service(
-                mobile.removeprefix("notify."), "", "", [],
-                tag=notification_id, clear=True,
-            )
+        for mobile in _mobile_services(device, settings):
+            await _fire_notify_service(mobile, "", "", [], tag=notification_id, clear=True)
 
 
 async def _fire_persistent(title: str, message: str, notification_id: str = _NOTIFY_ID):
@@ -79,6 +71,33 @@ async def _fire_persistent(title: str, message: str, notification_id: str = _NOT
 
 
 _SERVICE_NAME_RE = __import__("re").compile(r"^[a-z0-9_]{1,100}$")
+
+
+def _service_names(value) -> list[str]:
+    if isinstance(value, str):
+        value = [value]
+    if not isinstance(value, list):
+        return []
+    names = []
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        name = item.strip().removeprefix("notify.")
+        if name and name not in names:
+            names.append(name)
+    return names
+
+
+def _mobile_services(device: dict, settings: dict) -> list[str]:
+    """Phones for this alert. A device list replaces the Settings list."""
+    chosen = device.get("notify_mobile_services")
+    if not _service_names(chosen):
+        legacy = (device.get("notify_mobile_service") or "").strip()
+        chosen = [legacy] if legacy else settings.get("notify_mobile_default_services")
+    if not _service_names(chosen):
+        legacy = (settings.get("notify_mobile_default_service") or "").strip()
+        chosen = [legacy] if legacy else []
+    return _service_names(chosen)
 
 
 async def _fire_notify_service(service: str, title: str, message: str, targets: list,

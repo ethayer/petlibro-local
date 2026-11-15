@@ -172,11 +172,9 @@
           <p class="form-hint" data-i18n="settings.email_to_hint">Fallback address used when a device has no email override set.</p>
         </div>
         <div class="form-row">
-          <label class="form-label" data-i18n="settings.mobile_service">Default Companion App Service</label>
-          <select class="form-select" id="s-notify-mobile-service">
-            <option value="" data-i18n="settings.email_none">-- None --</option>
-          </select>
-          <p class="form-hint" data-i18n="settings.mobile_hint">Mobile alerts are push notifications sent through the Home Assistant Companion app on your phone, not text messages. This is the default phone (mobile_app service) used when a device has Mobile enabled but no per-device service set.</p>
+          <label class="form-label" data-i18n="settings.mobile_service">Phones</label>
+          <div id="s-notify-mobile-services"></div>
+          <p class="form-hint" data-i18n="settings.mobile_hint">Push notifications through the Home Assistant Companion app. Check every phone that should get the default alerts.</p>
         </div>
       </div>
       <button class="btn-primary" id="btn-save-notifications">

@@ -1253,12 +1253,7 @@ function buildNotificationsTab(device) {
     { key: "cleaning_due", label: t("notif.cleaning_due") },
     { key: "offline",      label: t("notif.offline") },
   ];
-  const devMobileOptions = `<option value="">-- Default from Settings --</option>` +
-    _mobileTargets.map(t =>
-      `<option value="${escHtml(t.service)}"${device.notify_mobile_service === t.service ? " selected" : ""}>${escHtml(t.label)}</option>`
-    ).join("") +
-    (device.notify_mobile_service && !_mobileTargets.find(t => t.service === device.notify_mobile_service)
-      ? `<option value="${escHtml(device.notify_mobile_service)}" selected>${escHtml(device.notify_mobile_service)}</option>` : "");
+  const devMobileSelected = storedMobileServices(device.notify_mobile_services, device.notify_mobile_service);
 
   const batteryLowRow = isFeeder ? `
     <div class="toggle-row">
@@ -1300,7 +1295,7 @@ function buildNotificationsTab(device) {
   <div id="nchan-mobile-section" style="${device.notify_mobile ? "" : "display:none"}">
     <div class="form-row">
       <label class="form-label">${t("notif.mobile_service")}</label>
-      <select class="form-select" id="nchan-mobile-svc">${devMobileOptions}</select>
+      <div id="nchan-mobile-services">${mobileServiceChecks(devMobileSelected, {emptyMeansDefault: true})}</div>
     </div>
   </div>
 
@@ -1921,7 +1916,7 @@ function wireDeviceTabHandlers(tabName) {
           notify_email: document.getElementById("nchan-email")?.checked !== false,
           notify_email_address: (document.getElementById("nchan-email-addr")?.value || "").trim(),
           notify_mobile: !!document.getElementById("nchan-mobile")?.checked,
-          notify_mobile_service: document.getElementById("nchan-mobile-svc")?.value || "",
+          notify_mobile_services: selectedMobileServices(document.getElementById("nchan-mobile-services")),
           ...(battLowEl ? { battery_low_pct: Math.max(0, Math.min(99, parseInt(battLowEl.value) || 0)) } : {}),
         };
         await api("POST", `/api/devices/${d.serial}`, payload);

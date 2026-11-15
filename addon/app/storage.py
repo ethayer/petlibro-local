@@ -29,6 +29,7 @@ DEFAULT_SETTINGS = {
     "notify_email_service": "",
     "notify_email_to": "",
     "notify_mobile_default_service": "",
+    "notify_mobile_default_services": [],
     "local_audio_base_url": "",
     "landing_page": "pets",
 }
@@ -41,7 +42,7 @@ ALLOWED_DEVICE_FIELDS = {
     "filter_life_days", "last_cleaned_ts", "cleaning_interval_days",
     "low_water_grams", "min_drink_grams", "notifications",
     "notify_bell", "notify_email", "notify_email_address",
-    "notify_mobile", "notify_mobile_service",
+    "notify_mobile", "notify_mobile_service", "notify_mobile_services",
     "desiccant_life_days", "last_desiccant_ts",
     "last_bowl_cleaned_ts", "bowl_cleaning_interval_days",
     "last_housing_cleaned_ts", "housing_cleaning_interval_days",
@@ -124,6 +125,7 @@ _DEVICE_DEFAULTS = {
     "notify_email_address": "",
     "notify_mobile": False,
     "notify_mobile_service": "",
+    "notify_mobile_services": None,
 }
 
 

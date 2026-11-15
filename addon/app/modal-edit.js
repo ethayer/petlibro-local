@@ -98,29 +98,55 @@ async function saveEditDevice() {
 
 // ── HA Notify Services ────────────────────────────────────────────────────
 let _mobileTargets = [];  // [{service, label}] with HA friendly names
+let _mobileTokenSet = true;
+
+function storedMobileServices(value, legacy) {
+  if (Array.isArray(value) && value.length) return value;
+  if (typeof legacy === "string" && legacy.trim()) return [legacy.trim()];
+  return [];
+}
+
+function mobileServiceChecks(selected, {emptyMeansDefault = false} = {}) {
+  if (!_mobileTargets.length) {
+    const key = _mobileTokenSet ? "settings.mobile_none" : "settings.mobile_no_token";
+    return `<p class="form-hint">${t(key)}</p>`;
+  }
+  const boxes = _mobileTargets.map(target => `
+    <label style="display:flex;align-items:center;gap:8px;margin:6px 0;font-size:14px">
+      <input type="checkbox" class="mobile-svc" value="${escHtml(target.service)}"${selected.includes(target.service) ? " checked" : ""}>
+      ${escHtml(target.label)}
+    </label>`).join("");
+  const hint = emptyMeansDefault ? `<p class="form-hint">${t("notif.mobile_default_hint")}</p>` : "";
+  return boxes + hint;
+}
+
+function selectedMobileServices(root) {
+  if (!root) return [];
+  return [...root.querySelectorAll(".mobile-svc:checked")].map(el => el.value);
+}
 
 async function loadNotifyServices() {
   try {
-    [_notifyServices, _mobileTargets] = await Promise.all([
+    const [services, mobile] = await Promise.all([
       api("GET", "/api/ha-notify-services"),
       api("GET", "/api/ha-mobile-targets"),
     ]);
+    _notifyServices = services;
+    if (Array.isArray(mobile)) {
+      _mobileTargets = mobile;
+      _mobileTokenSet = true;
+    } else {
+      _mobileTargets = mobile.targets || [];
+      _mobileTokenSet = mobile.token_set !== false;
+    }
   } catch {
     try { _notifyServices = await api("GET", "/api/ha-notify-services"); } catch { _notifyServices = []; }
     _mobileTargets = _notifyServices
       .filter(s => s.startsWith("mobile_app_"))
       .map(s => ({ service: s, label: s.replace("mobile_app_", "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) }));
+    _mobileTokenSet = true;
   }
   _populateNotifyDropdowns();
-}
-
-function _mobileOptions(savedValue) {
-  return `<option value="">-- None --</option>` +
-    _mobileTargets.map(t =>
-      `<option value="${escHtml(t.service)}"${t.service === savedValue ? " selected" : ""}>${escHtml(t.label)}</option>`
-    ).join("") +
-    (savedValue && !_mobileTargets.find(t => t.service === savedValue)
-      ? `<option value="${escHtml(savedValue)}" selected>${escHtml(savedValue)}</option>` : "");
 }
 
 function _populateNotifyDropdowns() {
@@ -137,9 +163,10 @@ function _populateNotifyDropdowns() {
       emailSel.innerHTML += `<option value="${escHtml(savedEmail)}" selected>${escHtml(savedEmail)}</option>`;
     }
   }
-  const mobileSel = document.getElementById("s-notify-mobile-service");
-  if (mobileSel) {
-    mobileSel.innerHTML = _mobileOptions(_settings.notify_mobile_default_service || "");
+  const mobileBox = document.getElementById("s-notify-mobile-services");
+  if (mobileBox) {
+    const selected = storedMobileServices(_settings.notify_mobile_default_services, _settings.notify_mobile_default_service);
+    mobileBox.innerHTML = mobileServiceChecks(selected);
   }
 }
 

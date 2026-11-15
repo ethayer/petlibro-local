@@ -313,6 +313,9 @@ async def handle_api_device_post(request):
         bad = _reject_number_field(data, "food_fill_percent", 0, 100, "Fill amount must be a percent from 0 to 100", places=0)
         if bad:
             return web.Response(status=400, text=bad)
+        if "notify_mobile_services" in data:
+            data["notify_mobile_services"] = _clean_mobile_services(data["notify_mobile_services"])
+            data["notify_mobile_service"] = ""
         if "food_level_ts" in data and data["food_level_ts"] is not None:
             ts = data["food_level_ts"]
             if isinstance(ts, bool) or not isinstance(ts, (int, float)) or ts <= 0:
@@ -638,11 +641,33 @@ async def handle_api_settings_get(request):
     return web.json_response(storage.get_settings())
 
 
+def _clean_mobile_services(value) -> list[str]:
+    if isinstance(value, str):
+        value = [value] if value.strip() else []
+    if not isinstance(value, list) or len(value) > 20:
+        raise ValueError
+    names = []
+    for item in value:
+        if not isinstance(item, str):
+            raise ValueError
+        name = item.strip().removeprefix("notify.")
+        if not name:
+            continue
+        if not re.fullmatch(r"mobile_app_[a-z0-9_]{1,80}", name):
+            raise ValueError
+        if name not in names:
+            names.append(name)
+    return names
+
+
 async def handle_api_settings_post(request):
     try:
         data = await request.json()
         if "landing_page" in data and data["landing_page"] not in ("pets", "devices"):
             return web.Response(status=400, text="Bad request")
+        if "notify_mobile_default_services" in data:
+            data["notify_mobile_default_services"] = _clean_mobile_services(data["notify_mobile_default_services"])
+            data["notify_mobile_default_service"] = ""
         result = storage.save_settings(data)
         settings = storage.get_settings()
         devices.configure(
@@ -756,9 +781,10 @@ async def handle_api_ha_notify_services(request):
 
 
 async def handle_api_ha_mobile_targets(request):
+    from ha_config import HA_TOKEN
     services = await ha_api.get_notify_services()
     targets = await ha_api.get_mobile_notify_targets(services)
-    return web.json_response(targets)
+    return web.json_response({"targets": targets, "token_set": bool(HA_TOKEN)})
 
 
 async def handle_api_diag_mosquitto(request):

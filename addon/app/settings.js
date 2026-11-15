@@ -305,7 +305,7 @@ async function saveSettings(fromTab) {
     notify_bell_enabled: document.getElementById("s-notify-bell")?.checked !== false,
     notify_email_service: document.getElementById("s-notify-email-service")?.value || "",
     notify_email_to: (document.getElementById("s-notify-email-to")?.value || "").trim(),
-    notify_mobile_default_service: document.getElementById("s-notify-mobile-service")?.value || "",
+    notify_mobile_default_services: selectedMobileServices(document.getElementById("s-notify-mobile-services")),
     local_audio_base_url: (document.getElementById("s-local-audio-base-url")?.value || "").trim(),
   };
   const statusEl = document.getElementById("mqtt-status");
